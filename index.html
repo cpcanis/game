@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a120c">
+<title>Carrom 2 Player</title>
+<meta name="description" content="দুইজনের ক্যারম গেম — এক ডিভাইসে অথবা ইনভাইট লিংক দিয়ে অনলাইনে বন্ধুর সাথে খেলুন। তৈরি করেছেন আনিসুর রহমান।">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&text=%E0%A7%A6%E0%A7%A7%E0%A7%A8%E0%A7%A9%E0%A7%AA%E0%A7%AB%E0%A7%AC%E0%A7%AD%E0%A7%AE%E0%A7%AF&display=swap">
+<style>
+  /* Layout: কাঠের ক্যারম বোর্ড মাঝখানে; মোবাইলে খাড়াভাবে উপরে-নিচে প্লেয়ার, বড় স্ক্রিনে দুই পাশে */
+  :root{
+    --bg:#1a120c;--bg2:#24180f;--card:#2c1e13;--card2:#38271a;--edge:rgba(255,230,190,.12);
+    --fg:#fbf3e6;--muted:#c9b59a;--accent:#f2b84b;--accent2:#e0703a;--red:#d1243b;--ok:#86efac;--bad:#fca5a5;
+    --p1:#f6efe1;--p2:#2a1d16;--fb:#1877f2;--yt:#ff0033;--veil:rgba(20,13,8,.9);
+    --font:"Noto Sans Bengali","Hind Siliguri","Nirmala UI","Segoe UI",sans-serif;
+    color-scheme:dark
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:radial-gradient(120% 90% at 50% 40%,var(--bg2),var(--bg));color:var(--fg);font-family:var(--font);overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  button{font-family:var(--font)}
+  [hidden]{display:none!important}
+
+  /* ---------- খেলার স্ক্রিন ---------- */
+  #game{position:fixed;inset:0;display:grid;gap:8px;
+    padding:max(10px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));
+    grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto auto;
+    grid-template-areas:"bar" "top" "board" "ctrl" "bottom"}
+  #bar{grid-area:bar;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  #panelTop{grid-area:top} #panelBottom{grid-area:bottom}
+  #boardWrap{grid-area:board;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+  #ctrl{grid-area:ctrl;display:flex;flex-direction:column;align-items:center;gap:4px}
+  canvas{display:block;touch-action:none;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  @media (min-aspect-ratio:5/4){
+    #game{grid-template-columns:minmax(140px,1fr) min(calc(100vh - 120px),62vw) minmax(140px,1fr);grid-template-columns:minmax(140px,1fr) min(calc(100dvh - 120px),62vw) minmax(140px,1fr);grid-template-rows:auto minmax(0,1fr) auto;
+      grid-template-areas:"bar bar bar" "bottom board top" "bottom ctrl top"}
+    #panelTop,#panelBottom{align-self:center;justify-self:center;width:100%;max-width:240px}
+  }
+  .pbtn{font-size:14px;font-weight:600;color:var(--fg);background:rgba(0,0,0,.35);border:1px solid var(--edge);border-radius:999px;padding:5px 14px;cursor:pointer}
+  .pbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .status{font-size:13px;color:var(--muted);text-align:center;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .panel{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--edge);border-radius:14px;padding:8px 14px;transition:box-shadow .3s,border-color .3s}
+  .panel.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 22px rgba(242,184,75,.25)}
+  .coinIcon{width:34px;height:34px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 3px rgba(0,0,0,.18),inset 0 0 0 7px rgba(255,255,255,.08),0 2px 4px rgba(0,0,0,.4)}
+  .coinIcon.white{background:radial-gradient(circle at 35% 30%,#fffdf6,#d9cbb0)}
+  .coinIcon.black{background:radial-gradient(circle at 35% 30%,#5a4336,#120c09);box-shadow:inset 0 0 0 3px rgba(255,255,255,.12),0 2px 4px rgba(0,0,0,.4)}
+  .pinfo{display:flex;flex-direction:column;min-width:0;flex:1}
+  .pname{font-size:16px;font-weight:700;line-height:1.2}
+  .pmeta{font-size:13px;color:var(--muted);line-height:1.3}
+  .pmeta b{color:var(--fg);font-variant-numeric:tabular-nums}
+  .queen{font-size:13px;font-weight:700;color:#fff;background:var(--red);border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .turnTag{font-size:12px;font-weight:700;color:var(--bg);background:var(--accent);border-radius:999px;padding:2px 9px;white-space:nowrap}
+  @media (min-aspect-ratio:5/4){
+    .panel{flex-direction:column;text-align:center;padding:16px 12px;gap:8px}
+    .pinfo{align-items:center}
+    .coinIcon{width:52px;height:52px}
+    .pname{font-size:18px}
+  }
+
+  #slider{width:min(100%,520px);accent-color:var(--accent);height:28px;touch-action:pan-x}
+  .hint{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.4}
+  #toast{position:absolute;left:50%;top:22%;transform:translate(-50%,-50%);max-width:86%;text-align:center;font-size:clamp(14px,2.4vmin,18px);font-weight:700;
+    color:#fff;background:rgba(20,12,6,.86);border:1px solid var(--edge);border-radius:12px;padding:10px 16px;pointer-events:none;opacity:0;transition:opacity .25s}
+  #toast.show{opacity:1}
+
+  /* ---------- ওভারলে ---------- */
+  .overlay{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:var(--veil);overflow:auto;
+    padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .overlay.show{display:flex}
+  .box{width:100%;max-width:560px;display:flex;flex-direction:column;gap:14px}
+  .eyebrow{margin:0;font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--accent)}
+  .box h1,.box h2{margin:0;line-height:1.2;font-weight:700;text-wrap:balance}
+  .box h1{font-size:clamp(32px,7vmin,48px)} .box h2{font-size:clamp(22px,4.6vmin,30px)}
+  .sub{margin:0;color:var(--muted);font-size:15px;line-height:1.5}
+  .btn{font-size:16px;font-weight:700;border-radius:12px;padding:10px 20px;cursor:pointer;border:0}
+  .btn.primary{color:var(--bg);background:var(--accent)}
+  .btn.ghost{color:var(--fg);background:transparent;border:1px solid var(--edge)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn:focus-visible,.choice:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+  .home-grid{width:100%;max-width:900px;display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:clamp(16px,3vw,32px);align-items:center}
+  @media (max-width:700px){.home-grid{grid-template-columns:1fr}}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:520px){.choices{grid-template-columns:1fr}}
+  .choice{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--card);border:1px solid var(--edge);border-radius:14px;padding:14px 16px;color:var(--fg);cursor:pointer;font:inherit}
+  .choice:hover{background:var(--card2)}
+  .choice .ic{font-size:24px;line-height:1}
+  .choice b{font-size:18px;font-weight:700}
+  .choice span{font-size:14px;color:var(--muted);line-height:1.4}
+  .choice.online{border-color:rgba(242,184,75,.45)}
+  .choice:disabled{opacity:.55;cursor:not-allowed}
+  .linkish{align-self:flex-start;background:none;border:0;color:var(--accent);font-size:15px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px}
+
+  .credit{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--card);border:1px solid var(--edge);border-radius:18px;padding:18px 14px}
+  .avatar{width:112px;height:112px;border-radius:50%;padding:4px;background:conic-gradient(from 0deg,var(--accent),var(--accent2),var(--accent),#facc15,var(--accent));
+    animation:glow 2.4s ease-in-out infinite,spin 6s linear infinite}
+  .avatar img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid var(--card);animation:spin 6s linear infinite reverse}
+  @keyframes glow{0%,100%{box-shadow:0 0 8px 1px rgba(242,184,75,.35),0 0 22px 4px rgba(224,112,58,.15)}50%{box-shadow:0 0 16px 4px rgba(242,184,75,.85),0 0 38px 10px rgba(224,112,58,.35)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .credit .by{margin:0;font-size:13px;color:var(--muted);letter-spacing:.04em}
+  .credit .name{margin:0;font-size:22px;font-weight:700;line-height:1.2}
+  .social{display:flex;flex-direction:column;gap:8px;width:100%}
+  .social a{display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:600;color:#fff;text-decoration:none;border-radius:10px;padding:8px 12px}
+  .social a svg{width:18px;height:18px;flex:none;fill:currentColor}
+  .social .fb{background:var(--fb)} .social .yt{background:var(--yt)}
+  .social a:hover{filter:brightness(1.12)}
+  .social a:focus-visible{outline:3px solid #fff;outline-offset:2px}
+  @media (max-width:700px){.credit{flex-direction:row;flex-wrap:wrap;justify-content:center;padding:12px;gap:8px 14px;text-align:left}
+    .avatar{width:72px;height:72px;padding:3px}.credit .name{font-size:18px}.social{flex-direction:row}.social a{flex:1;padding:7px 10px}}
+  @media (max-height:460px){.box{gap:9px}.box h1{font-size:30px}.choice{padding:10px 14px}.avatar{width:80px;height:80px}.credit{padding:10px;gap:6px}}
+
+  .view{display:none;flex-direction:column;gap:14px} .view.show{display:flex}
+  .codebox{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--edge);border-radius:14px;padding:12px 16px}
+  .codebox .lbl{font-size:13px;color:var(--muted);letter-spacing:.06em}
+  .code{font-size:clamp(30px,6vmin,40px);font-weight:700;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;font-family:"Segoe UI",system-ui,sans-serif}
+  .linkbox{display:flex;gap:8px;flex-wrap:wrap}
+  .link{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--edge);border-radius:10px;padding:9px 12px;font-size:14px;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+  .lstatus{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;margin:0}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex:none;animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  .note{margin:0;font-size:14px;line-height:1.5;color:var(--muted);background:var(--card);border:1px solid var(--edge);border-radius:12px;padding:10px 12px}
+  .note b{color:var(--fg)}
+  .err{margin:0;color:var(--bad);font-size:15px;line-height:1.5}
+  .joinrow{display:flex;gap:8px;flex-wrap:wrap}
+  .joinrow input{flex:1 1 140px;min-width:0;font:inherit;font-size:22px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--fg);
+    background:var(--bg);border:1px solid var(--edge);border-radius:10px;padding:6px 12px;-webkit-user-select:text;user-select:text}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--edge)}
+  .rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .rules li{background:var(--card);border:1px solid var(--edge);border-radius:12px;padding:9px 12px;font-size:15px;line-height:1.5}
+  .rules li b{color:var(--accent)}
+  .win{text-align:center;align-items:center}
+  .win .trophy{font-size:64px;line-height:1}
+  @media (prefers-reduced-motion:reduce){.avatar,.avatar img,.dot{animation:none}}
+</style>
+</head>
+<body>
+
+<!-- খেলার স্ক্রিন -->
+<div id="game" hidden>
+  <div id="bar">
+    <button class="pbtn" id="menuBtn" type="button">☰ মেনু</button>
+    <span class="status" id="statusText"></span>
+    <button class="pbtn" id="rulesBtn2" type="button">নিয়ম</button>
+  </div>
+  <div class="panel" id="panelTop"></div>
+  <div id="boardWrap"><canvas id="board" aria-label="ক্যারম বোর্ড"></canvas><div id="toast" role="status" aria-live="polite"></div></div>
+  <div id="ctrl">
+    <input type="range" id="slider" min="0" max="1000" value="500" aria-label="স্ট্রাইকার ডানে-বামে সরান">
+    <div class="hint" id="hint">স্লাইডার বা স্ট্রাইকার টেনে জায়গা ঠিক করুন • বোর্ডে আঙুল রেখে পিছনে টানুন, ছেড়ে দিলেই শট</div>
+  </div>
+  <div class="panel" id="panelBottom"></div>
+</div>
+
+<!-- হোম -->
+<div id="home" class="overlay show">
+  <div class="home-grid">
+    <div class="box">
+      <p class="eyebrow">২ জন প্লেয়ার • সাদা বনাম কালো</p>
+      <h1>Carrom</h1>
+      <p class="sub">কীভাবে খেলবেন বেছে নিন।</p>
+      <div class="choices">
+        <button class="choice" id="pickLocal" type="button">
+          <span class="ic" aria-hidden="true">👥</span><b>এক ডিভাইসে ২ জন</b>
+          <span>একই ফোন বা কম্পিউটারে পালা করে খেলুন</span>
+        </button>
+        <button class="choice online" id="pickOnline" type="button">
+          <span class="ic" aria-hidden="true">🌐</span><b>অনলাইনে বন্ধুর সাথে</b>
+          <span id="onlineSub">লোড হচ্ছে…</span>
+        </button>
+      </div>
+      <button class="linkish" id="rulesBtn" type="button">খেলার নিয়ম দেখুন</button>
+    </div>
+    <aside class="credit" aria-label="গেমের নির্মাতা">
+      <div class="avatar"><img src="data:image/jpeg;base64,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" alt="আনিসুর রহমান" width="104" height="104"></div>
+      <div>
+        <p class="by">গেমটি তৈরি করেছেন</p>
+        <p class="name">আনিসুর রহমান</p>
+      </div>
+      <div class="social">
+        <a class="fb" href="https://www.facebook.com/cpcanisur" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8.5V6.8c0-.8.2-1.3 1.4-1.3H17V2.2c-.3 0-1.3-.2-2.6-.2C11.7 2 10 3.6 10 6.6v1.9H7.3v3.7H10V22h4v-9.8h2.8l.4-3.7H14z"/></svg>Facebook</a>
+        <a class="yt" href="https://www.youtube.com/@AnisurRahmanPro" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.7 15.1V8.9l5.8 3.1-5.8 3.1z"/></svg>YouTube</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- নিয়ম -->
+<div id="rules" class="overlay" role="dialog" aria-labelledby="rulesTitle">
+  <div class="box">
+    <p class="eyebrow">ক্যারমের নিয়ম</p>
+    <h2 id="rulesTitle">কীভাবে খেলবেন</h2>
+    <ul class="rules">
+      <li><b>সাদা গুটি</b> Player 1-এর, <b>কালো গুটি</b> Player 2-এর। Player 1 আগে খেলে।</li>
+      <li>স্লাইডার বা স্ট্রাইকার টেনে নিজের লাইনে জায়গা ঠিক করুন। তারপর বোর্ডে আঙুল/মাউস রেখে <b>পিছনে টানুন</b> — যত বেশি টানবেন তত জোরে শট, ছেড়ে দিলেই মারা হবে।</li>
+      <li>নিজের গুটি পকেটে ফেললে <b>আবার মারার সুযোগ</b>। না পারলে পালা বদলায়।</li>
+      <li>স্ট্রাইকার পকেটে পড়লে <b>ফাউল</b>: আপনার পকেটের একটা গুটি মাঝে ফেরত যায়, পালাও বদলায়।</li>
+      <li>লাল <b>কুইন</b> পকেটে ফেললে সেই শটে বা পরের শটে নিজের একটা গুটি ফেলে কভার করতে হবে। না পারলে কুইন মাঝে ফেরত যায়।</li>
+      <li>কুইন কেউ না নেওয়া পর্যন্ত কারো শেষ গুটি ফেলা যাবে না, ফেললে সেটা মাঝে ফেরত যায়।</li>
+      <li>যে আগে নিজের <b>৯টা গুটি</b> পকেটে ফেলবে, সে জিতবে।</li>
+    </ul>
+    <div class="row"><button class="btn primary" id="rulesClose" type="button">বুঝেছি</button></div>
+  </div>
+</div>
+
+<!-- জয় -->
+<div id="winBox" class="overlay" role="dialog" aria-labelledby="winTitle">
+  <div class="box win">
+    <div class="trophy" aria-hidden="true">🏆</div>
+    <h2 id="winTitle">Player 1 জিতেছে!</h2>
+    <p class="sub" id="winSub"></p>
+    <div class="row" style="justify-content:center">
+      <button class="btn primary" id="againBtn" type="button">আবার খেলুন</button>
+      <button class="btn ghost" id="winMenu" type="button">মেনু</button>
+    </div>
+  </div>
+</div>
+
+<!-- অনলাইন লবি -->
+<div id="online" class="overlay">
+  <div class="box">
+    <div class="view" id="vChoose">
+      <p class="eyebrow">অনলাইন খেলা</p>
+      <h2>বন্ধুর সাথে অনলাইনে খেলুন</h2>
+      <p class="sub">আপনি গেম তৈরি করলে একটা ইনভাইট লিংক পাবেন। বন্ধু সেই লিংক খুললেই খেলা শুরু হবে।</p>
+      <div class="row"><button class="btn primary" id="createBtn" type="button">নতুন গেম তৈরি করুন</button></div>
+      <div class="divider">অথবা বন্ধুর কোড দিয়ে জয়েন করুন</div>
+      <form class="joinrow" id="joinForm" autocomplete="off">
+        <input id="codeInput" maxlength="4" placeholder="কোড" aria-label="গেমের কোড" autocapitalize="characters" spellcheck="false">
+        <button class="btn ghost" type="submit">জয়েন করুন</button>
+      </form>
+      <p class="err" id="chooseErr" hidden></p>
+      <div class="row"><button class="btn ghost back" type="button">← মেনুতে ফিরুন</button></div>
+    </div>
+    <div class="view" id="vHost">
+      <p class="eyebrow">আপনি Player 1 (সাদা)</p>
+      <h2>আপনার গেম তৈরি হয়েছে</h2>
+      <div class="codebox"><span class="lbl">গেমের কোড</span><span class="code" id="codeShow">----</span></div>
+      <div class="linkbox"><div class="link" id="inviteLink"></div><button class="btn primary" id="copyBtn" type="button">লিংক কপি করুন</button></div>
+      <p class="lstatus"><span class="dot" id="hostDot"></span><span id="hostStatusText">বন্ধুর জন্য অপেক্ষা করছি…</span></p>
+      <p class="note">লিংকটা WhatsApp বা Messenger-এ বন্ধুকে পাঠান। <b>বন্ধু লিংক খুললেই খেলা শুরু হবে</b>, কোনো অ্যাকাউন্ট লাগবে না। খেলা শেষ না হওয়া পর্যন্ত এই পেজটা খোলা রাখুন।</p>
+      <div class="row"><button class="btn ghost back" type="button">গেম বাতিল করুন</button></div>
+    </div>
+    <div class="view" id="vJoin">
+      <p class="eyebrow">আপনি Player 2 (কালো)</p>
+      <h2>গেমে যোগ দিচ্ছি</h2>
+      <div class="codebox"><span class="lbl">গেমের কোড</span><span class="code" id="joinCodeShow">----</span></div>
+      <p class="lstatus" id="joinStatus"><span class="dot"></span><span id="joinStatusText">কানেক্ট হচ্ছে…</span></p>
+      <p class="err" id="joinErr" hidden></p>
+      <div class="row"><button class="btn ghost back" type="button">← মেনুতে ফিরুন</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+
+// ================= বোর্ডের মাপ (বোর্ড ইউনিট, খেলার জায়গা 0..1000) =================
+const SZ = 1000, FR = 64, TOT = SZ + FR * 2;
+const R_C = 22, R_S = 30, R_P = 35;                  // গুটি, স্ট্রাইকার, পকেট
+const POCKETS = [[R_P, R_P], [SZ - R_P, R_P], [R_P, SZ - R_P], [SZ - R_P, SZ - R_P]];
+const BASE_Y = [850, 150];                           // Player 1 নিচে, Player 2 উপরে
+const SX_MIN = 180, SX_MAX = 820;
+const DECEL = 420, WALL_E = 0.72, BALL_E = 0.93, M_C = 1, M_S = 2.1;
+const MAX_SPEED = 2900;
+
+// ================= সাউন্ড =================
+let actx = null, lastClick = 0;
+function unlockAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(f, d, type, v) {
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(v, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + d);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + d);
+  } catch (_) {}
+}
+function playSound(kind, v = 1) {
+  if (kind === 'hit') { const t = performance.now(); if (t - lastClick < 25) return; lastClick = t; tone(1400 + Math.random() * 300, 0.04, 'triangle', 0.05 + 0.12 * v); }
+  else if (kind === 'wall') tone(260, 0.06, 'triangle', 0.04 + 0.08 * v);
+  else if (kind === 'shot') tone(500, 0.05, 'square', 0.05);
+  else if (kind === 'pocket') { tone(180, 0.18, 'sine', 0.16); setTimeout(() => tone(120, 0.15, 'sine', 0.1), 60); }
+  else if (kind === 'foul') { tone(160, 0.25, 'sawtooth', 0.06); }
+  else if (kind === 'good') { tone(660, 0.1, 'sine', 0.1); setTimeout(() => tone(880, 0.12, 'sine', 0.1), 90); }
+  else if (kind === 'win') { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'sine', 0.12), i * 120)); }
+}
+// হোস্ট যে সাউন্ড বাজায়, বন্ধুর কাছেও পাঠানো হয়
+let sndId = 0, sndQ = [];
+function sfx(kind, v = 1) {
+  playSound(kind, v);
+  if (mode === 'host') { sndQ.push([++sndId, kind, Math.round(v * 100) / 100]); if (sndQ.length > 10) sndQ.shift(); }
+}
+
+// ================= খেলার অবস্থা =================
+let mode = 'local';            // local | host | guest
+let G = null;                  // আসল খেলা (local/host-এ চলে)
+let msgId = 0, lastMsg = [0, ''];
+
+function makeCoins() {
+  const cs = [];
+  const add = (x, y, c) => cs.push({ x, y, vx: 0, vy: 0, c, in: false, at: 0 });
+  const cx = SZ / 2, cy = SZ / 2, d = R_C * 2 + 0.6;
+  add(cx, cy, 2);                                                     // কুইন
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, i % 2); }
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; add(cx + Math.cos(a) * d * 2, cy + Math.sin(a) * d * 2, i % 2 ? 0 : 1); }
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + Math.PI / 6; add(cx + Math.cos(a) * d * Math.sqrt(3), cy + Math.sin(a) * d * Math.sqrt(3), i % 2); }
+  return cs;   // ১টা কুইন, ৯টা সাদা (0), ৯টা কালো (1)
+}
+function newGame() {
+  G = {
+    coins: makeCoins(),
+    striker: { x: SZ / 2, y: BASE_Y[0], vx: 0, vy: 0, in: false },
+    sx: [SZ / 2, SZ / 2], turn: 0, state: 'aim', qOwner: null, qPending: null,
+    shot: [], winner: null, pocketSeq: 0, shotId: 0
+  };
+  placeStriker();
+  hideOverlay('winBox');
+  toast('Player 1 (সাদা) আগে মারবে');
+}
+const queenOf = g => g.coins[0];
+const pocketedCount = (g, col) => g.coins.filter(c => c.c === col && c.in).length;
+
+function placeStriker() {
+  const s = G.striker;
+  s.x = G.sx[G.turn]; s.y = BASE_Y[G.turn]; s.vx = s.vy = 0; s.in = false;
+}
+function placementOk(coins, x, y) {
+  for (const c of coins) if (!c.in && Math.hypot(c.x - x, c.y - y) < R_C + R_S + 0.5) return false;
+  return true;
+}
+function returnToCenter(c) {
+  c.in = false; c.vx = c.vy = 0;
+  const free = (x, y) => G.coins.every(o => o === c || o.in || Math.hypot(o.x - x, o.y - y) >= R_C * 2 + 1);
+  if (free(SZ / 2, SZ / 2)) { c.x = SZ / 2; c.y = SZ / 2; return; }
+  for (let r = R_C * 2 + 2; r < 400; r += R_C) {
+    const n = Math.max(6, Math.floor(2 * Math.PI * r / (R_C * 2)));
+    for (let i = 0; i < n; i++) {
+      const a = i * 2 * Math.PI / n, x = SZ / 2 + Math.cos(a) * r, y = SZ / 2 + Math.sin(a) * r;
+      if (free(x, y)) { c.x = x; c.y = y; return; }
+    }
+  }
+}
+
+function shoot(vx, vy) {
+  if (!G || G.state !== 'aim') return false;
+  const s = G.striker;
+  placeStriker();
+  if (!placementOk(G.coins, s.x, s.y)) { toast('এখানে গুটি আছে — স্ট্রাইকার একটু সরান'); return false; }
+  const sp = Math.hypot(vx, vy);
+  if (sp > MAX_SPEED) { vx *= MAX_SPEED / sp; vy *= MAX_SPEED / sp; }
+  s.vx = vx; s.vy = vy;
+  G.state = 'moving'; G.shot = []; G.shotId++;
+  sfx('shot');
+  return true;
+}
+
+// ---------- ফিজিক্স ----------
+function stepPhysics(dt) {
+  const pieces = G.coins.filter(c => !c.in);
+  if (!G.striker.in) pieces.push(G.striker);
+  for (const p of pieces) {
+    const sp = Math.hypot(p.vx, p.vy);
+    if (sp > 0) {
+      const ns = Math.max(0, sp - DECEL * dt);
+      p.vx *= ns / sp; p.vy *= ns / sp;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+    }
+    const r = p === G.striker ? R_S : R_C;
+    if (p.x < r) { p.x = r; if (p.vx < 0) { if (-p.vx > 60) sfx('wall', Math.min(1, -p.vx / 1500)); p.vx = -p.vx * WALL_E; } }
+    if (p.x > SZ - r) { p.x = SZ - r; if (p.vx > 0) { if (p.vx > 60) sfx('wall', Math.min(1, p.vx / 1500)); p.vx = -p.vx * WALL_E; } }
+    if (p.y < r) { p.y = r; if (p.vy < 0) { if (-p.vy > 60) sfx('wall', Math.min(1, -p.vy / 1500)); p.vy = -p.vy * WALL_E; } }
+    if (p.y > SZ - r) { p.y = SZ - r; if (p.vy > 0) { if (p.vy > 60) sfx('wall', Math.min(1, p.vy / 1500)); p.vy = -p.vy * WALL_E; } }
+  }
+  // ধাক্কা
+  for (let i = 0; i < pieces.length; i++) for (let j = i + 1; j < pieces.length; j++) {
+    const a = pieces[i], b = pieces[j];
+    const ra = a === G.striker ? R_S : R_C, rb = b === G.striker ? R_S : R_C;
+    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy), min = ra + rb;
+    if (dist >= min || dist === 0) continue;
+    const nx = dx / dist, ny = dy / dist;
+    const ma = a === G.striker ? M_S : M_C, mb = b === G.striker ? M_S : M_C;
+    const overlap = min - dist;
+    a.x -= nx * overlap * mb / (ma + mb); a.y -= ny * overlap * mb / (ma + mb);
+    b.x += nx * overlap * ma / (ma + mb); b.y += ny * overlap * ma / (ma + mb);
+    const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+    if (rv >= 0) continue;
+    const jimp = -(1 + BALL_E) * rv / (1 / ma + 1 / mb);
+    a.vx -= jimp * nx / ma; a.vy -= jimp * ny / ma;
+    b.vx += jimp * nx / mb; b.vy += jimp * ny / mb;
+    if (-rv > 40) sfx('hit', Math.min(1, -rv / 1500));
+  }
+  // পকেট
+  for (const p of pieces) {
+    for (const [px, py] of POCKETS) {
+      if (Math.hypot(p.x - px, p.y - py) < R_P) {
+        p.in = true; p.vx = p.vy = 0; p.x = px; p.y = py;
+        if (p !== G.striker) p.at = ++G.pocketSeq;
+        G.shot.push(p);
+        sfx(p === G.striker ? 'foul' : 'pocket');
+        break;
+      }
+    }
+  }
+}
+function allStopped() {
+  const ps = G.coins.filter(c => !c.in); if (!G.striker.in) ps.push(G.striker);
+  return ps.every(p => Math.hypot(p.vx, p.vy) < 4);
+}
+
+// ---------- শট শেষে নিয়ম ----------
+const NAME = ['Player 1', 'Player 2'];
+function resolveTurn() {
+  for (const c of G.coins) { c.vx = c.vy = 0; }
+  const cur = G.turn, P = G.shot;
+  const own = P.filter(c => c.c === cur), queenIn = P.includes(queenOf(G));
+  const foul = P.includes(G.striker);
+  const q = queenOf(G);
+  let next = 1 - cur, msg = '', good = false;
+
+  if (foul) {
+    own.forEach(returnToCenter);
+    if (queenIn) returnToCenter(q);
+    if (G.qPending === cur) { if (q.in) returnToCenter(q); G.qPending = null; }
+    const back = G.coins.filter(c => c.c === cur && c.in).sort((a, b) => b.at - a.at)[0];
+    if (back) returnToCenter(back);
+    msg = 'ফাউল! স্ট্রাইকার পকেটে পড়েছে' + (back ? ', একটা গুটি মাঝে ফেরত গেল' : '');
+  } else {
+    if (queenIn) {
+      if (own.length) { G.qOwner = cur; G.qPending = null; msg = '👑 কুইন নেওয়া হলো!'; }
+      else { G.qPending = cur; msg = '👑 কুইন পকেটে! এবার নিজের একটা গুটি ফেলে কভার করুন'; }
+    } else if (G.qPending === cur) {
+      if (own.length) { G.qOwner = cur; msg = '👑 কুইন কভার হলো!'; }
+      else { returnToCenter(q); msg = 'কভার হয়নি — কুইন মাঝে ফেরত গেল'; }
+      G.qPending = null;
+    }
+    if (own.length || queenIn) { next = cur; good = true; if (!msg) msg = 'দারুণ! আবার মারুন'; }
+  }
+  // কুইন বোর্ডে থাকতে শেষ গুটি ফেলা যাবে না
+  for (const col of [0, 1]) {
+    if (pocketedCount(G, col) === 9 && G.qOwner === null) {
+      const last = G.coins.filter(c => c.c === col && c.in).sort((a, b) => b.at - a.at)[0];
+      returnToCenter(last);
+      msg = 'কুইন বোর্ডে থাকতে শেষ গুটি ফেলা যাবে না — গুটি ফেরত গেল';
+      if (col === cur) { next = 1 - cur; good = false; }
+    }
+  }
+  for (const col of [0, 1]) {
+    if (pocketedCount(G, col) === 9 && G.qOwner !== null) { G.winner = col; G.state = 'over'; sfx('win'); showWin(); return; }
+  }
+  if (foul) sfx('foul', 0.5); else if (good) sfx('good');
+  G.turn = next; G.state = 'aim';
+  placeStriker();
+  if (!msg && next !== cur) msg = NAME[next] + '-এর পালা';
+  toast(msg);
+}
+
+function updateGame(dt) {
+  if (!G || G.state !== 'moving') return;
+  const sub = 4;
+  for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
+  if (allStopped()) resolveTurn();
+}
+
+// ================= টোস্ট মেসেজ =================
+// অনলাইনে "Player 1/2" এর বদলে "আপনি/বন্ধু"
+function localize(t) {
+  if (mode === 'local') return t;
+  const me = mySide(), you = ['আপনার পালা', 'বন্ধুর পালা'];
+  return t.replace('Player 1-এর পালা', me === 0 ? you[0] : you[1]).replace('Player 2-এর পালা', me === 1 ? you[0] : you[1])
+          .replace('Player 1 (সাদা) আগে মারবে', me === 0 ? 'আপনি (সাদা) আগে মারবেন' : 'বন্ধু (সাদা) আগে মারবে');
+}
+let toastTimer = 0;
+function toast(t) {
+  if (!t) return;
+  const el = $('toast'); el.textContent = localize(t); el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  if (mode === 'host') lastMsg = [++msgId, t];
+}
+
+// ================= ভিউ (অনলাইনে বন্ধুর স্ক্রিন উল্টো, যাতে তার লাইন নিচে থাকে) =================
+const cv = $('board'), ctx = cv.getContext('2d');
+let cssSize = 300, dpr = 1;
+const flip = () => mode === 'guest';
+const mySide = () => mode === 'host' ? 0 : mode === 'guest' ? 1 : -1;
+function resize() {
+  const w = $('boardWrap').clientWidth, h = $('boardWrap').clientHeight;
+  cssSize = Math.max(200, Math.floor(Math.min(w, h)));
+  dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  cv.style.width = cv.style.height = cssSize + 'px';
+  cv.width = cv.height = Math.round(cssSize * dpr);
+}
+new ResizeObserver(resize).observe($('boardWrap'));
+addEventListener('resize', resize);
+function toBoard(e) {
+  const r = cv.getBoundingClientRect();
+  let x = (e.clientX - r.left) / r.width * TOT - FR, y = (e.clientY - r.top) / r.height * TOT - FR;
+  if (flip()) { x = SZ - x; y = SZ - y; }
+  return { x, y };
+}
+
+// ================= ইনপুট: স্ট্রাইকার সরানো ও টেনে মারা =================
+let drag = null, aim = null;          // aim = {dx, dy, p} — শটের দিক ও জোর
+let localSX = SZ / 2, shotSent = false;
+let remoteIn = null;                  // হোস্টে: বন্ধুর এখনকার স্ট্রাইকার/এইম
+const view = { coins: null, striker: null, turn: 0, state: 'aim', qOwner: null, qPending: null, winner: null, aim: null, sx: [500, 500] };
+
+function canControl() {
+  if (mode === 'local') return G && G.state === 'aim';
+  if (mode === 'host') return G && G.state === 'aim' && G.turn === 0;
+  if (mode === 'guest') return view.state === 'aim' && view.turn === 1 && !shotSent && connOpen;
+  return false;
+}
+function activeTurn() { return mode === 'guest' ? view.turn : G ? G.turn : 0; }
+function currentSX() { return mode === 'guest' ? localSX : G.sx[G.turn]; }
+function setSX(x) {
+  x = Math.max(SX_MIN, Math.min(SX_MAX, x));
+  if (mode === 'guest') localSX = x; else { G.sx[G.turn] = x; placeStriker(); }
+  syncSlider();
+}
+function syncSlider() {
+  const t = (currentSX() - SX_MIN) / (SX_MAX - SX_MIN);
+  const v = Math.round((flip() || (mode === 'local' && G && G.turn === 1 && false) ? 1 - t : t) * 1000);
+  if (+$('slider').value !== v) $('slider').value = v;
+}
+$('slider').addEventListener('input', e => {
+  if (!canControl()) { syncSlider(); return; }
+  let t = +e.target.value / 1000; if (flip()) t = 1 - t;
+  setSX(SX_MIN + t * (SX_MAX - SX_MIN));
+});
+
+cv.addEventListener('pointerdown', e => {
+  unlockAudio();
+  if (!canControl()) return;
+  const p = toBoard(e);
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  const sy = BASE_Y[activeTurn()], sx = currentSX();
+  const onStriker = Math.hypot(p.x - sx, p.y - sy) < R_S * 1.9;
+  drag = { mode: onStriker ? 'pending' : 'aim', x0: p.x, y0: p.y, sx0: sx, id: e.pointerId };
+  aim = null;
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!canControl()) { drag = null; aim = null; return; }
+  const p = toBoard(e), dx = p.x - drag.x0, dy = p.y - drag.y0, len = Math.hypot(dx, dy);
+  if (drag.mode === 'pending' && len > 12) drag.mode = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'move' : 'aim';
+  if (drag.mode === 'move') setSX(drag.sx0 + dx);
+  else if (drag.mode === 'aim') aim = len < 14 ? null : { dx: -dx / len, dy: -dy / len, p: Math.min(1, (len - 14) / 260) };
+});
+function endDrag(e) {
+  if (!drag || (e && e.pointerId !== drag.id)) return;
+  const a = aim, m = drag.mode; drag = null; aim = null;
+  if (m === 'aim' && a && a.p > 0.04 && canControl()) fire(a);
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', () => { drag = null; aim = null; });
+
+function fire(a) {
+  const sp = 180 + a.p * (MAX_SPEED - 180);
+  const vx = a.dx * sp, vy = a.dy * sp;
+  if (mode === 'guest') {
+    if (!placementOk(view.coins, localSX, BASE_Y[1])) { toast('এখানে গুটি আছে — স্ট্রাইকার একটু সরান'); return; }
+    shotSent = true; sendNet({ t: 'shoot', sx: localSX, vx, vy });
+    playSound('shot');
+  } else shoot(vx, vy);
+}
+// কিবোর্ড: ←/→ দিয়ে স্ট্রাইকার সরানো
+const keys = {};
+addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  keys[e.code] = true;
+  if (e.code === 'Escape') { if (isShown('rules')) hideOverlay('rules'); }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+function keyMove() {
+  if (!canControl() || drag) return;
+  let d = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
+  if (!d) return;
+  if (flip()) d = -d;
+  setSX(currentSX() + d * 5);
+}
+
+// ================= আঁকা =================
+const woodGrain = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 512, 512);
+  grd.addColorStop(0, '#f3dcaa'); grd.addColorStop(1, '#e6c48a');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 90; i++) {
+    g.strokeStyle = `rgba(150,100,45,${0.03 + Math.random() * 0.05})`; g.lineWidth = 1 + Math.random() * 2;
+    g.beginPath(); const y = Math.random() * 512; g.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x / 60 + i) * 6);
+    g.stroke();
+  }
+  return c;
+})();
+
+function drawBoardBase() {
+  // ফ্রেম
+  const fg = ctx.createLinearGradient(-FR, -FR, SZ + FR, SZ + FR);
+  fg.addColorStop(0, '#6b3f1d'); fg.addColorStop(0.5, '#4a2a12'); fg.addColorStop(1, '#6b3f1d');
+  ctx.fillStyle = fg;
+  roundRect(-FR, -FR, TOT, TOT, 34); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,220,170,.25)'; ctx.lineWidth = 3; roundRect(-FR + 8, -FR + 8, TOT - 16, TOT - 16, 28); ctx.stroke();
+  // খেলার জায়গা
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SZ, SZ); ctx.clip();
+  ctx.drawImage(woodGrain, 0, 0, SZ, SZ);
+  const vg = ctx.createRadialGradient(SZ / 2, SZ / 2, SZ * 0.3, SZ / 2, SZ / 2, SZ * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(80,40,10,.18)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, SZ, SZ);
+  ctx.restore();
+  ctx.strokeStyle = '#3b2210'; ctx.lineWidth = 4; ctx.strokeRect(0, 0, SZ, SZ);
+
+  const ink = '#4a2a14', red = '#b8242f';
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.5;
+  // চার দিকের বেস লাইন
+  for (let k = 0; k < 4; k++) {
+    ctx.save(); ctx.translate(SZ / 2, SZ / 2); ctx.rotate(k * Math.PI / 2); ctx.translate(-SZ / 2, -SZ / 2);
+    const yo = 828, yi = 872;
+    ctx.beginPath(); ctx.moveTo(SX_MIN, yo); ctx.lineTo(SX_MAX, yo); ctx.moveTo(SX_MIN, yi); ctx.lineTo(SX_MAX, yi); ctx.stroke();
+    for (const x of [SX_MIN, SX_MAX]) {
+      ctx.beginPath(); ctx.arc(x, 850, 22, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = red; ctx.beginPath(); ctx.arc(x, 850, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    // কোণার তীর
+    ctx.beginPath(); ctx.moveTo(88, 912); ctx.lineTo(290, 710); ctx.stroke();
+    ctx.beginPath(); ctx.arc(300, 700, 14, Math.PI * 0.25, Math.PI * 1.75, true); ctx.stroke();
+    ctx.restore();
+  }
+  // মাঝের নকশা
+  ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, 160, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, 150, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); ctx.translate(SZ / 2, SZ / 2);
+  ctx.fillStyle = 'rgba(184,36,47,.18)'; ctx.strokeStyle = 'rgba(120,30,30,.55)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, r = i % 2 ? 50 : 132; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = red; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, 26, 0, Math.PI * 2); ctx.stroke();
+  // পকেট
+  for (const [x, y] of POCKETS) {
+    const g = ctx.createRadialGradient(x, y, 4, x, y, R_P + 4);
+    g.addColorStop(0, '#000'); g.addColorStop(0.75, '#140b05'); g.addColorStop(1, '#3a220f');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R_P + 3, 0, Math.PI * 2); ctx.fill();
+  }
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function drawCoin(x, y, c, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(40,20,5,.35)'; ctx.beginPath(); ctx.arc(x + 3, y + 4, R_C, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createRadialGradient(x - 6, y - 7, 2, x, y, R_C);
+  if (c === 0) { g.addColorStop(0, '#fffdf6'); g.addColorStop(1, '#d6c6a6'); }
+  else if (c === 1) { g.addColorStop(0, '#6a5040'); g.addColorStop(1, '#140d09'); }
+  else { g.addColorStop(0, '#ff6b7d'); g.addColorStop(1, '#8a0f20'); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R_C, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = c === 0 ? 'rgba(120,90,50,.45)' : 'rgba(255,255,255,.18)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(x, y, R_C * 0.68, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, R_C * 0.35, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+function drawStriker(x, y, bad) {
+  ctx.fillStyle = 'rgba(40,20,5,.35)'; ctx.beginPath(); ctx.arc(x + 3, y + 5, R_S, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createRadialGradient(x - 8, y - 9, 3, x, y, R_S);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, bad ? '#f2b3b3' : '#c9d6ee');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R_S, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = bad ? '#c0392b' : '#2b5fb3'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, R_S - 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, R_S * 0.45, 0, Math.PI * 2); ctx.stroke();
+}
+function drawAim(x, y, a) {
+  if (!a) return;
+  const len = 90 + a.p * 420;
+  const col = a.p < 0.45 ? '#3fae5a' : a.p < 0.8 ? '#e0a020' : '#d63a2a';
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.setLineDash([14, 12]); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x + a.dx * (R_S + 6), y + a.dy * (R_S + 6)); ctx.lineTo(x + a.dx * len, y + a.dy * len); ctx.stroke();
+  ctx.setLineDash([]);
+  const ex = x + a.dx * len, ey = y + a.dy * len, ang = Math.atan2(a.dy, a.dx);
+  ctx.fillStyle = col; ctx.beginPath();
+  ctx.moveTo(ex + Math.cos(ang) * 18, ey + Math.sin(ang) * 18);
+  ctx.lineTo(ex + Math.cos(ang + 2.5) * 16, ey + Math.sin(ang + 2.5) * 16);
+  ctx.lineTo(ex + Math.cos(ang - 2.5) * 16, ey + Math.sin(ang - 2.5) * 16);
+  ctx.closePath(); ctx.fill();
+  // জোরের আংটি
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.arc(x, y, R_S + 14, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(x, y, R_S + 14, -Math.PI / 2, -Math.PI / 2 + a.p * Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+function render() {
+  const sc = cssSize * dpr / TOT;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(sc, 0, 0, sc, FR * sc, FR * sc);
+  if (flip()) { ctx.translate(SZ / 2, SZ / 2); ctx.rotate(Math.PI); ctx.translate(-SZ / 2, -SZ / 2); }
+  drawBoardBase();
+
+  let coins, striker, st, turn;
+  if (mode === 'guest') { coins = view.coins || []; striker = view.striker; st = view.state; turn = view.turn; }
+  else if (G) { coins = G.coins; striker = G.striker; st = G.state; turn = G.turn; }
+  else return;
+  for (const c of coins) if (!c.in) drawCoin(c.x, c.y, c.c);
+  if (striker && !striker.in) {
+    let sx = striker.x, sy = striker.y, a = null;
+    if (st === 'aim') {
+      sy = BASE_Y[turn];
+      if (mode === 'guest') { sx = turn === 1 ? localSX : striker.x; a = turn === 1 ? aim : view.aim; }
+      else if (mode === 'host' && turn === 1) { sx = G.sx[1]; a = remoteIn && remoteIn.aim; }
+      else { sx = G.sx[turn]; a = aim; }
+      drawAim(sx, sy, a);
+    }
+    drawStriker(sx, sy, st === 'aim' && !placementOk(coins, sx, sy));
+  }
+}
+
+// ================= প্যানেল ও স্ট্যাটাস =================
+let lastPanelKey = '';
+function updatePanels() {
+  const s = mode === 'guest' ? view : G; if (!s) return;
+  const counts = mode === 'guest' ? [view.coins.filter(c => c.c === 0 && c.in).length, view.coins.filter(c => c.c === 1 && c.in).length]
+                                  : [pocketedCount(G, 0), pocketedCount(G, 1)];
+  const key = [counts, s.turn, s.state, s.qOwner, s.qPending, mode, connOpen].join('|');
+  if (key === lastPanelKey) return; lastPanelKey = key;
+  const bottom = flip() ? 1 : 0, top = 1 - bottom;
+  const label = p => mode === 'local' ? NAME[p] : (p === mySide() ? 'আপনি' : 'বন্ধু');
+  const fill = (el, p) => {
+    const active = s.state !== 'over' && s.turn === p;
+    el.classList.toggle('active', active);
+    el.innerHTML = '';
+    const icon = document.createElement('div'); icon.className = 'coinIcon ' + (p === 0 ? 'white' : 'black');
+    const info = document.createElement('div'); info.className = 'pinfo';
+    const nm = document.createElement('div'); nm.className = 'pname'; nm.textContent = label(p) + (mode === 'local' ? '' : ' • ' + NAME[p]);
+    const meta = document.createElement('div'); meta.className = 'pmeta';
+    meta.innerHTML = (p === 0 ? 'সাদা' : 'কালো') + ' গুটি • পকেটে <b></b>';
+    meta.querySelector('b').textContent = bn(counts[p]) + '/' + bn(9);
+    info.append(nm, meta);
+    el.append(icon, info);
+    if (s.qOwner === p) { const q = document.createElement('span'); q.className = 'queen'; q.textContent = '👑 কুইন'; el.append(q); }
+    else if (s.qPending === p) { const q = document.createElement('span'); q.className = 'queen'; q.textContent = '👑 কভার করুন'; el.append(q); }
+    if (active) { const t = document.createElement('span'); t.className = 'turnTag'; t.textContent = 'পালা'; el.append(t); }
+  };
+  fill($('panelBottom'), bottom); fill($('panelTop'), top);
+  let status = '';
+  if (s.state === 'over') status = 'খেলা শেষ';
+  else if (mode === 'local') status = NAME[s.turn] + '-এর পালা (' + (s.turn === 0 ? 'সাদা' : 'কালো') + ')';
+  else status = (s.turn === mySide() ? 'আপনার পালা' : 'বন্ধুর পালা') + (s.state === 'moving' ? ' • গুটি চলছে…' : '');
+  if (mode !== 'local') status = 'অনলাইন • ' + roomCode.toUpperCase() + ' • ' + status;
+  $('statusText').textContent = status;
+  const mine = s.state === 'aim' && (mode === 'local' || s.turn === mySide());
+  $('slider').disabled = !mine;
+  $('ctrl').style.opacity = mine ? '1' : '.45';
+}
+
+// ================= ওভারলে =================
+const isShown = id => $(id).classList.contains('show');
+function showOverlay(id) { $(id).classList.add('show'); }
+function hideOverlay(id) { $(id).classList.remove('show'); }
+function showWin() {
+  const w = mode === 'guest' ? view.winner : G.winner;
+  if (w === null || w === undefined) return;
+  $('winTitle').textContent = mode === 'local' ? NAME[w] + ' জিতেছে!' : (w === mySide() ? 'আপনি জিতেছেন!' : 'বন্ধু জিতেছে!');
+  $('winSub').textContent = (w === 0 ? 'সাদা' : 'কালো') + ' গুটির সব ৯টা পকেটে ফেলা হয়েছে।';
+  showOverlay('winBox');
+}
+$('rulesBtn').addEventListener('click', () => showOverlay('rules'));
+$('rulesBtn2').addEventListener('click', () => showOverlay('rules'));
+$('rulesClose').addEventListener('click', () => hideOverlay('rules'));
+$('againBtn').addEventListener('click', () => {
+  unlockAudio();
+  if (mode === 'guest') { sendNet({ t: 'again' }); hideOverlay('winBox'); }
+  else newGame();
+});
+$('winMenu').addEventListener('click', goHome);
+$('menuBtn').addEventListener('click', goHome);
+
+function startGameScreen() {
+  hideOverlay('home'); hideOverlay('online');
+  $('game').hidden = false; lastPanelKey = '';
+  requestAnimationFrame(resize);
+}
+$('pickLocal').addEventListener('click', () => {
+  unlockAudio(); cleanupNet(); mode = 'local';
+  newGame(); startGameScreen(); syncSlider();
+});
+function goHome() {
+  cleanupNet();
+  mode = 'local'; G = null; drag = null; aim = null;
+  $('game').hidden = true; hideOverlay('winBox'); hideOverlay('online'); showOverlay('home');
+  try { if (location.hash) history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+}
+
+// ================= অনলাইন (PeerJS: দুই ব্রাউজার সরাসরি কানেক্ট হয়) =================
+const ID_PREFIX = 'anisur-carrom-v1-';
+let peer = null, conn = null, connOpen = false, roomCode = '', netReady = false, netTried = false;
+let lastRecv = 0, lastSend = 0, guestJoined = false, joinStartedAt = 0, shotSentAt = 0;
+let seenMsg = 0, lastSndPlayed = -1, prevGuestTurn = -1, winShown = false;
+const ALPH = 'abcdefghjkmnpqrstuvwxyz23456789';
+const genCode = () => Array.from({ length: 4 }, () => ALPH[Math.floor(Math.random() * ALPH.length)]).join('');
+const cleanCode = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+const hashMatch = (location.hash || '').match(/^#([a-z0-9]{4})$/i);
+const COLORS = makeCoins().map(c => c.c);
+const r1 = v => Math.round(v * 10) / 10;
+
+const PEER_CDNS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
+function loadPeerLib(i = 0) {
+  if (typeof window.Peer === 'function' || i >= PEER_CDNS.length) { netTried = true; netReady = typeof window.Peer === 'function'; onNetLoaded(); return; }
+  const sc = document.createElement('script'); sc.src = PEER_CDNS[i]; sc.async = true;
+  sc.onload = () => loadPeerLib(typeof window.Peer === 'function' ? 99 : i + 1);
+  sc.onerror = () => loadPeerLib(i + 1);
+  document.head.appendChild(sc);
+}
+function onNetLoaded() {
+  const sub = $('onlineSub');
+  if (netReady) { sub.textContent = 'ইনভাইট লিংক পাঠিয়ে আলাদা জায়গা থেকে খেলুন'; $('pickOnline').disabled = false; }
+  else { sub.textContent = 'অনলাইন খেলার জন্য ইন্টারনেট দরকার। পেজটা রিফ্রেশ করে দেখুন।'; $('pickOnline').disabled = true; }
+  if (hashMatch && mode === 'guest' && !peer) startGuest(cleanCode(hashMatch[1]));
+}
+$('pickOnline').disabled = true;
+
+function sendNet(d) { if (conn && connOpen) { try { conn.send(d); } catch (_) {} } }
+function cleanupNet() {
+  const c = conn, p = peer; conn = null; peer = null; connOpen = false; guestJoined = false;
+  try { if (c) c.close(); } catch (_) {}
+  try { if (p) p.destroy(); } catch (_) {}
+}
+addEventListener('pagehide', cleanupNet);
+function showView(v) { ['vChoose', 'vHost', 'vJoin'].forEach(x => $(x).classList.toggle('show', x === v)); showOverlay('online'); }
+
+$('pickOnline').addEventListener('click', () => {
+  unlockAudio(); if (!netReady) return;
+  $('chooseErr').hidden = true; hideOverlay('home'); showView('vChoose');
+});
+document.querySelectorAll('.back').forEach(b => b.addEventListener('click', goHome));
+
+// ---- হোস্ট ----
+function setHostStatus(t, waiting) { $('hostStatusText').textContent = t; $('hostDot').hidden = !waiting; }
+$('createBtn').addEventListener('click', () => { unlockAudio(); createHost(0); });
+function createHost(tries) {
+  const btn = $('createBtn'); btn.disabled = true; btn.textContent = 'তৈরি হচ্ছে…';
+  cleanupNet();
+  roomCode = genCode();
+  let opened = false;
+  const me = new Peer(ID_PREFIX + roomCode, { debug: 0 });
+  peer = me;
+  me.on('open', () => {
+    if (peer !== me) return;
+    opened = true; mode = 'host'; G = null;
+    $('codeShow').textContent = roomCode.toUpperCase();
+    $('inviteLink').textContent = location.origin + location.pathname + '#' + roomCode;
+    $('copyBtn').textContent = 'লিংক কপি করুন';
+    setHostStatus('বন্ধুর জন্য অপেক্ষা করছি…', true);
+    btn.disabled = false; btn.textContent = 'নতুন গেম তৈরি করুন';
+    showView('vHost');
+  });
+  me.on('connection', c => {
+    if (peer !== me) return;
+    if (conn && connOpen) {
+      c.on('open', () => { try { c.send({ t: 'full' }); } catch (_) {} setTimeout(() => { try { c.close(); } catch (_) {} }, 600); });
+      return;
+    }
+    conn = c;
+    c.on('open', () => { if (conn === c) { connOpen = true; lastRecv = performance.now(); } });
+    c.on('data', d => { if (conn === c && d) hostReceive(d); });
+    c.on('close', () => { if (conn === c) guestGone(); });
+    c.on('error', () => {});
+  });
+  me.on('disconnected', () => { if (peer === me && !me.destroyed) { try { me.reconnect(); } catch (_) {} } });
+  me.on('error', err => {
+    if (peer !== me) return;
+    if (err && err.type === 'unavailable-id' && tries < 5) { createHost(tries + 1); return; }
+    if (!opened) {
+      btn.disabled = false; btn.textContent = 'নতুন গেম তৈরি করুন';
+      const er = $('chooseErr'); er.hidden = false; er.textContent = 'গেম তৈরি করা গেল না। ইন্টারনেট চেক করে আবার চেষ্টা করুন।';
+      cleanupNet();
+    }
+  });
+}
+function hostReceive(d) {
+  lastRecv = performance.now();
+  if (d.t === 'hello' && !guestJoined) {
+    guestJoined = true; sndQ = []; sndId = 0; msgId = 0;
+    newGame(); startGameScreen(); syncSlider(); sfx('good');
+    return;
+  }
+  if (!guestJoined || !G) return;
+  if (d.t === 'in') {
+    remoteIn = d;
+    if (G.turn === 1 && G.state === 'aim' && typeof d.sx === 'number') { G.sx[1] = Math.max(SX_MIN, Math.min(SX_MAX, d.sx)); placeStriker(); }
+  } else if (d.t === 'shoot') {
+    if (G.turn !== 1 || G.state !== 'aim') return;
+    if (typeof d.sx === 'number') { G.sx[1] = Math.max(SX_MIN, Math.min(SX_MAX, d.sx)); placeStriker(); }
+    remoteIn = null;
+    if (!shoot(+d.vx || 0, +d.vy || 0)) sendNet({ t: 'rej' });
+  } else if (d.t === 'again') {
+    if (G.state === 'over') newGame();
+  }
+}
+function guestGone() {
+  try { if (conn) conn.close(); } catch (_) {}
+  conn = null; connOpen = false; guestJoined = false; remoteIn = null;
+  if (mode !== 'host') return;
+  $('game').hidden = true; hideOverlay('winBox'); G = null;
+  setHostStatus('বন্ধু চলে গেছে। একই লিংকে আবার ঢুকলে খেলা নতুন করে শুরু হবে।', true);
+  showView('vHost');
+}
+$('copyBtn').addEventListener('click', () => {
+  const text = $('inviteLink').textContent;
+  const fallback = () => {
+    try { const r = document.createRange(); r.selectNodeContents($('inviteLink')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } catch (_) {}
+    $('copyBtn').textContent = 'লিংক সিলেক্ট করা হয়েছে, কপি করে নিন';
+  };
+  try { navigator.clipboard.writeText(text).then(() => { $('copyBtn').textContent = 'কপি হয়েছে ✓'; }, fallback); } catch (_) { fallback(); }
+});
+
+// ---- বন্ধু (গেস্ট) ----
+$('joinForm').addEventListener('submit', e => {
+  e.preventDefault(); unlockAudio();
+  const c = cleanCode($('codeInput').value);
+  if (c.length !== 4) { const er = $('chooseErr'); er.hidden = false; er.textContent = '৪ অক্ষরের কোডটা লিখুন।'; return; }
+  startGuest(c);
+});
+function startGuest(code) {
+  hideOverlay('home');
+  roomCode = code; mode = 'guest';
+  $('joinCodeShow').textContent = code.toUpperCase();
+  $('joinErr').hidden = true; $('joinStatus').hidden = false; $('joinStatusText').textContent = 'কানেক্ট হচ্ছে…';
+  showView('vJoin');
+  if (!netTried) return;
+  if (!netReady) { joinFail('অনলাইন খেলার জন্য ইন্টারনেট দরকার। পেজটা রিফ্রেশ করে দেখুন।'); return; }
+  cleanupNet();
+  view.coins = null; view.striker = null; seenMsg = 0; lastSndPlayed = -1; prevGuestTurn = -1; shotSent = false; winShown = false;
+  joinStartedAt = performance.now(); lastRecv = 0;
+  const me = new Peer({ debug: 0 });
+  peer = me;
+  me.on('open', () => {
+    if (peer !== me) return;
+    $('joinStatusText').textContent = 'গেম খুঁজছি…';
+    const c = me.connect(ID_PREFIX + code, { reliable: true, serialization: 'json' });
+    conn = c;
+    c.on('open', () => {
+      if (conn !== c) return;
+      connOpen = true; lastRecv = performance.now();
+      $('joinStatusText').textContent = 'কানেক্ট হয়েছে, খেলা শুরু হচ্ছে…';
+      sendNet({ t: 'hello' });
+    });
+    c.on('data', d => { if (conn === c && d) guestReceive(d); });
+    c.on('close', () => { if (conn === c && mode === 'guest') joinFail('বন্ধু (হোস্ট) গেম থেকে বের হয়ে গেছে।'); });
+    c.on('error', () => {});
+  });
+  me.on('disconnected', () => { if (peer === me && !me.destroyed && !connOpen) { try { me.reconnect(); } catch (_) {} } });
+  me.on('error', err => {
+    if (peer !== me) return;
+    if (err && err.type === 'peer-unavailable') joinFail('এই কোডে কোনো গেম পাওয়া যায়নি। কোড ঠিক আছে কিনা, আর বন্ধুর গেমের পেজটা খোলা আছে কিনা দেখুন।');
+    else if (!connOpen) joinFail('কানেক্ট করা গেল না। ইন্টারনেট চেক করে আবার চেষ্টা করুন।');
+  });
+}
+function joinFail(msg) {
+  cleanupNet();
+  $('game').hidden = true; hideOverlay('winBox');
+  $('joinStatus').hidden = true; const er = $('joinErr'); er.hidden = false; er.textContent = msg;
+  showView('vJoin'); joinStartedAt = 0;
+}
+function guestReceive(d) {
+  lastRecv = performance.now();
+  if (d.t === 'full') { joinFail('এই গেমে আগেই দুজন খেলছে। বন্ধুকে নতুন গেম তৈরি করতে বলুন।'); return; }
+  if (d.t === 'rej') { shotSent = false; toast('এখানে গুটি আছে — স্ট্রাইকার একটু সরান'); return; }
+  if (d.t !== 's') return;
+  if ($('game').hidden) { startGameScreen(); playSound('good'); }
+  applySnap(d);
+}
+function applySnap(s) {
+  const first = !view.coins;
+  if (first) view.coins = COLORS.map(c => ({ x: SZ / 2, y: SZ / 2, tx: SZ / 2, ty: SZ / 2, c, in: false }));
+  if (!view.striker) view.striker = { x: SZ / 2, y: BASE_Y[0], tx: SZ / 2, ty: BASE_Y[0], in: false };
+  const moving = s.st === 'moving';
+  for (let i = 0; i < view.coins.length; i++) {
+    const c = view.coins[i], x = s.pc[i * 3], y = s.pc[i * 3 + 1], inn = !!s.pc[i * 3 + 2];
+    c.tx = x; c.ty = y;
+    if (first || !moving || c.in !== inn) { c.x = x; c.y = y; }
+    c.in = inn;
+  }
+  const k = view.striker; k.tx = s.sk[0]; k.ty = s.sk[1];
+  if (first || !moving || k.in !== !!s.sk[2]) { k.x = s.sk[0]; k.y = s.sk[1]; }
+  k.in = !!s.sk[2];
+  view.state = s.st; view.turn = s.tn; view.qOwner = s.q[0]; view.qPending = s.q[1]; view.winner = s.w; view.aim = s.aim; view.sx = s.sx;
+  if (s.st === 'aim' && s.tn === 1 && prevGuestTurn !== 1) { localSX = s.sx[1]; shotSent = false; syncSlider(); }
+  if (s.st !== 'aim' || s.tn !== 1) shotSent = false;
+  prevGuestTurn = s.st === 'aim' ? s.tn : -1;
+  if (Array.isArray(s.m) && s.m[0] > seenMsg) { seenMsg = s.m[0]; toast(s.m[1]); }
+  const list = Array.isArray(s.snd) ? s.snd : [];
+  if (lastSndPlayed < 0) lastSndPlayed = list.length ? list[list.length - 1][0] : 0;
+  for (const a of list) if (a[0] > lastSndPlayed) { lastSndPlayed = a[0]; playSound(String(a[1]), +a[2]); }
+  if (s.st === 'over' && !winShown) { winShown = true; showWin(); }
+  if (s.st !== 'over' && winShown) { winShown = false; hideOverlay('winBox'); }
+}
+function updateGuestView() {
+  if (!view.coins) return;
+  for (const c of view.coins) if (!c.in) { c.x += (c.tx - c.x) * 0.5; c.y += (c.ty - c.y) * 0.5; }
+  const k = view.striker; if (k && !k.in) { k.x += (k.tx - k.x) * 0.5; k.y += (k.ty - k.y) * 0.5; }
+}
+
+// প্রতি ফ্রেমে নেটওয়ার্ক
+function netTick(now) {
+  if (mode === 'guest' && !connOpen) {
+    if (joinStartedAt && now - joinStartedAt > 20000) joinFail('কানেক্ট করা গেল না। দুজনেরই ইন্টারনেট চেক করুন, দরকার হলে Wi-Fi বা মোবাইল ডাটা বদলে আবার চেষ্টা করুন।');
+    return;
+  }
+  if (!conn || !connOpen) return;
+  if (mode === 'host') {
+    if (!guestJoined || !G) return;
+    if (now - lastRecv > 8000) { guestGone(); return; }
+    const gap = G.state === 'moving' || (G.state === 'aim' && G.turn === 0 && aim) ? 33 : 100;
+    if (now - lastSend < gap) return;
+    lastSend = now;
+    const pc = [];
+    for (const c of G.coins) pc.push(r1(c.x), r1(c.y), c.in ? 1 : 0);
+    const a = G.turn === 0 && aim ? { dx: r1(aim.dx * 1000) / 1000, dy: r1(aim.dy * 1000) / 1000, p: r1(aim.p * 100) / 100 } : null;
+    sendNet({ t: 's', st: G.state, tn: G.turn, q: [G.qOwner, G.qPending], w: G.winner, pc,
+      sk: [r1(G.striker.x), r1(G.striker.y), G.striker.in ? 1 : 0], sx: G.sx.map(r1), aim: a, m: lastMsg, snd: sndQ });
+  } else if (mode === 'guest') {
+    if (lastRecv && now - lastRecv > 8000) { joinFail('কানেকশন কেটে গেছে। আবার লিংকে ঢুকে দেখুন।'); return; }
+    const myTurn = view.state === 'aim' && view.turn === 1;
+    if (now - lastSend < (myTurn ? 50 : 1000)) return;
+    lastSend = now;
+    sendNet(myTurn ? { t: 'in', sx: r1(localSX), aim: aim ? { dx: aim.dx, dy: aim.dy, p: aim.p } : null } : { t: 'in' });
+  }
+}
+
+if (hashMatch) startGuest(cleanCode(hashMatch[1]));
+loadPeerLib();
+
+
+// ================= মূল লুপ =================
+let last = performance.now(), acc = 0;
+const STEP = 1 / 60;
+function loop(now) {
+  acc += Math.min((now - last) / 1000, 0.1); last = now;
+  while (acc >= STEP) {
+    keyMove();
+    if (mode !== 'guest') updateGame(STEP); else updateGuestView();
+    acc -= STEP;
+  }
+  netTick(now);
+  if (!$('game').hidden) { render(); updatePanels(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
